@@ -1,10 +1,38 @@
 /* ==================================================================
- *  粒子 / 特效 —— 枪口火焰、血液、火花、弹孔、弹壳、手雷模型
+ *  粒子 / 特效 —— 枪口火焰、血液、火花、弹孔、弹壳、弹道、手雷模型
+ *  性能：弹壳/弹道/灯光全部池化，弹孔共享几何体
  * ================================================================== */
 'use strict';
 
-/* 生成一组简单粒子（Points），带随机速度 */
+/* ------------------------------------------------------------------
+ *  共享几何体 / 材质
+ * ------------------------------------------------------------------ */
+const _shellGeo = new THREE.CylinderGeometry(.008,.008,.03,6);
+const _shellMat = new THREE.MeshStandardMaterial({ color: 0xffcc00, metalness: .9, roughness: .2 });
+const _shellFree = [];          // 弹壳对象池
+
+const _holeGeo = new THREE.CircleGeometry(.06, 8);
+const _holeMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: .85, depthWrite: false });
+
+const tracers = [];             // 活动中的弹道
+const _tracerFree = [];         // 弹道 Line 池
+const TRACER_MAX = 24;
+
+/* 枪口灯光（池化复用） */
+let _flashLight = null, _flashTimer = 0;
+
+/* 取得当前武器枪口世界坐标 */
+function getMuzzleWorld(){
+  const mp = new THREE.Vector3();
+  currentWeaponModel.userData.muzzle.getWorldPosition(mp);
+  return mp;
+}
+
+/* ------------------------------------------------------------------
+ *  粒子
+ * ------------------------------------------------------------------ */
 function spawnParticles(pos, count, color, speed, size, life){
+  if(particles.length >= 120) return;   // 爆发数量上限，防止卡顿
   const geo = new THREE.BufferGeometry();
   const positions = new Float32Array(count*3);
   const vels = [];
@@ -26,13 +54,17 @@ function spawnParticles(pos, count, color, speed, size, life){
 }
 
 function spawnMuzzleFlash(){
-  const mp = new THREE.Vector3();
-  currentWeaponModel.userData.muzzle.getWorldPosition(mp);
+  const mp = getMuzzleWorld();
   spawnParticles(mp, 6, 0xffcc44, 3, .06, .06);
-  const light = new THREE.PointLight(0xffaa00, 3, 4);
-  light.position.copy(mp);
-  scene.add(light);
-  setTimeout(()=> scene.remove(light), 50);
+  if(!_flashLight){
+    _flashLight = new THREE.PointLight(0xffaa00, 3, 4);
+    _flashLight.visible = false;
+    scene.add(_flashLight);
+  }
+  _flashLight.position.copy(mp);
+  _flashLight.visible = true;
+  clearTimeout(_flashTimer);
+  _flashTimer = setTimeout(()=> _flashLight.visible = false, 45);
 }
 
 function spawnBlood(pos){
@@ -44,20 +76,61 @@ function spawnSpark(pos){
   spawnParticles(pos, 6, 0xffcc44, 2, .025, .25);
 }
 
+/* 弹孔：共享几何体/材质，最多保留 60 个 */
 function spawnBulletHole(pos, normal){
-  const geo = new THREE.CircleGeometry(.06, 8);
-  const mat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: .85, depthWrite: false });
-  const hole = new THREE.Mesh(geo, mat);
+  const hole = new THREE.Mesh(_holeGeo, _holeMat);
   hole.position.copy(pos).add(normal.clone().multiplyScalar(.01));
   hole.lookAt(pos.clone().add(normal));
   scene.add(hole);
   bulletHoles.push(hole);
   if(bulletHoles.length > 60){
-    const old = bulletHoles.shift();
-    scene.remove(old);
+    scene.remove(bulletHoles.shift());
   }
 }
 
+/* 弹壳：对象池取用，寿命结束只隐藏不销毁 */
+function spawnShell(){
+  let mesh = _shellFree.pop();
+  if(!mesh){
+    mesh = new THREE.Mesh(_shellGeo, _shellMat);
+    scene.add(mesh);
+  }
+  mesh.visible = true;
+  mesh.position.copy(getMuzzleWorld());
+  mesh.position.x += .1;
+  const vel = new THREE.Vector3(.8 + Math.random()*.5, 1.5 + Math.random()*.5, (Math.random()-.5)*.5).normalize().multiplyScalar(2.5);
+  shellCasings.push({ mesh, vel, life: 2 });
+}
+
+/* ------------------------------------------------------------------
+ *  弹道曳光：从枪口到命中点的发光细线
+ * ------------------------------------------------------------------ */
+function spawnTracer(from, to, color, life){
+  if(tracers.length >= TRACER_MAX){
+    const old = tracers.shift();
+    old.mesh.visible = false;
+    _tracerFree.push(old.mesh);
+  }
+  let mesh = _tracerFree.pop();
+  if(!mesh){
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3));
+    mesh = new THREE.Line(g, new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: .75, depthWrite: false }));
+    particleGroup.add(mesh);
+  }
+  const arr = mesh.geometry.attributes.position.array;
+  arr[0]=from.x; arr[1]=from.y; arr[2]=from.z;
+  arr[3]=to.x;   arr[4]=to.y;   arr[5]=to.z;
+  mesh.geometry.attributes.position.needsUpdate = true;
+  mesh.material.color.setHex(color);
+  mesh.material.opacity = .75;
+  mesh.visible = true;
+  tracers.push({ mesh, life, maxLife: life });
+}
+
+/* ------------------------------------------------------------------
+ *  手雷模型
+ * ------------------------------------------------------------------ */
 function createGrenadeModel(){
   const g = new THREE.Group();
   const bodyMat = new THREE.MeshStandardMaterial({ color: 0x2d4c1e, metalness: .3, roughness: .7 });
@@ -79,7 +152,9 @@ function createGrenadeModel(){
   return g;
 }
 
-/* 每帧更新：粒子 + 弹壳 */
+/* ------------------------------------------------------------------
+ *  每帧更新：粒子 + 弹壳 + 弹道
+ * ------------------------------------------------------------------ */
 function updateParticles(dt){
   for(let i=particles.length-1;i>=0;i--){
     const p = particles[i];
@@ -105,11 +180,50 @@ function updateParticles(dt){
   for(let i=shellCasings.length-1;i>=0;i--){
     const s = shellCasings[i];
     s.life -= dt;
-    if(s.life <= 0){ scene.remove(s.mesh); shellCasings.splice(i,1); continue; }
+    if(s.life <= 0){
+      s.mesh.visible = false;
+      _shellFree.push(s.mesh);
+      shellCasings.splice(i,1);
+      continue;
+    }
     s.vel.y -= 20 * dt;
     s.mesh.position.addScaledVector(s.vel, dt);
     s.mesh.rotation.x += dt*12;
     s.mesh.rotation.z += dt*12;
     if(s.mesh.position.y < .02){ s.mesh.position.y = .02; s.vel.y *= -.3; }
   }
+
+  for(let i=tracers.length-1;i>=0;i--){
+    const t = tracers[i];
+    t.life -= dt;
+    if(t.life <= 0){
+      t.mesh.visible = false;
+      _tracerFree.push(t.mesh);
+      tracers.splice(i,1);
+      continue;
+    }
+    t.mesh.material.opacity = .75 * t.life / t.maxLife;
+  }
+}
+
+/* 一局重置：清空所有临时特效实体 */
+function clearFx(){
+  for(const p of particles) particleGroup.remove(p.mesh);
+  particles.length = 0;
+
+  for(const t of tracers){
+    t.mesh.visible = false;
+    particleGroup.remove(t.mesh);
+    _tracerFree.push(t.mesh);
+  }
+  tracers.length = 0;
+
+  for(const s of shellCasings){
+    s.mesh.visible = false;
+    _shellFree.push(s.mesh);
+  }
+  shellCasings.length = 0;
+
+  for(const b of bulletHoles) scene.remove(b);
+  bulletHoles.length = 0;
 }

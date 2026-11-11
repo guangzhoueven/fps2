@@ -179,8 +179,18 @@ function spawnEnemy(){
 const _enemyChest = new THREE.Vector3();
 const _playerChest = new THREE.Vector3();
 const _muzzleWorld = new THREE.Vector3();
+const _tracerAim = new THREE.Vector3();
+
+/* 敌人枪口灯光（池化复用） */
+let _enemyFlashLight = null, _enemyFlashTimer = 0;
+
+/* 难度递增：随击杀数提升敌人数量上限与强度 */
+function maxActiveEnemies(){
+  return Math.min(5 + Math.floor(player.kills / 4), 8);
+}
 
 function updateEnemies(dt){
+  const diff = Math.min(player.kills, 20);
   for(const e of enemies){
     if(e.dead){
       e.deadTime += dt;
@@ -216,11 +226,11 @@ function updateEnemies(dt){
       e.mesh.lookAt(player.pos.x, ePos.y, player.pos.z);
     }
 
-    // 移动：朝玩家 + 随机侧向摇摆
+    // 移动：朝玩家 + 随机侧向摇摆（难度越高移动越快）
     if(dist > 4.5 && dist < 35){
       const dirX = dx / dist;
       const dirZ = dz / dist;
-      const spd = e.speed;
+      const spd = e.speed * (1 + diff * .03);
 
       let moveX = dirX * spd * dt;
       let moveZ = dirZ * spd * dt;
@@ -251,7 +261,7 @@ function updateEnemies(dt){
     if(dist < 28 && dist > 1.5 && !player.isDead && see){
       e.fireCd -= dt;
       if(e.fireCd <= 0){
-        e.fireCd = .8 + Math.random()*1.3;
+        e.fireCd = Math.max(.4, .8 + Math.random()*1.3 - diff*.04);
 
         // 枪口世界坐标：从敌人胸口沿朝玩家方向前伸
         const fwdX = dx / dist, fwdZ = dz / dist;
@@ -259,10 +269,23 @@ function updateEnemies(dt){
 
         // 枪口火焰
         spawnParticles(_muzzleWorld, 5, 0xffcc44, 2.5, .05, .06);
-        const flashLight = new THREE.PointLight(0xffaa33, 2, 5);
-        flashLight.position.copy(_muzzleWorld);
-        scene.add(flashLight);
-        setTimeout(()=> scene.remove(flashLight), 60);
+        if(!_enemyFlashLight){
+          _enemyFlashLight = new THREE.PointLight(0xffaa33, 2, 5);
+          _enemyFlashLight.visible = false;
+          scene.add(_enemyFlashLight);
+        }
+        _enemyFlashLight.position.copy(_muzzleWorld);
+        _enemyFlashLight.visible = true;
+        clearTimeout(_enemyFlashTimer);
+        _enemyFlashTimer = setTimeout(()=> _enemyFlashLight.visible = false, 50);
+
+        // 弹道曳光：射向玩家胸口附近（带随机偏移）
+        _tracerAim.set(
+          player.pos.x + (Math.random()-.5)*1.5,
+          player.pos.y + 1.2 + (Math.random()-.5)*.5,
+          player.pos.z + (Math.random()-.5)*1.5
+        );
+        spawnTracer(_muzzleWorld, _tracerAim, 0xff5522, .07);
 
         // 枪口发光点短暂变亮
         if(e.mesh.userData.muzzleGlow){
@@ -275,7 +298,8 @@ function updateEnemies(dt){
 
         snd('shot', .09 * Math.max(.15, 1 - dist/28));
 
-        const acc = Math.max(.12, .45 - dist*.014);
+        /* 难度越高射击间隔越短、命中率越高 */
+        const acc = Math.max(.15, .45 + diff*.012 - dist*.014);
         if(Math.random() < acc){
           damagePlayer(6 + Math.random()*7, Math.atan2(dx, dz));
         }

@@ -3,6 +3,8 @@
  * ================================================================== */
 'use strict';
 
+let minimapAcc = 0;
+
 function animate(){
   requestAnimationFrame(animate);
   const dt = Math.min(0.05, clock.getDelta());
@@ -13,8 +15,15 @@ function animate(){
     updateEnemies(dt);
     updateGrenades(dt);
     updateParticles(dt);
+    updatePickups(dt);
     updateWeapon(dt);
-    updateMinimap();
+
+    /* 小地图按 0.08s 节流刷新，减轻 DOM 绘制压力 */
+    minimapAcc += dt;
+    if(minimapAcc >= .08){
+      minimapAcc = 0;
+      updateMinimap();
+    }
 
     if(comboTimer > 0){
       comboTimer -= dt;

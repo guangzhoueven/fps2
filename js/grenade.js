@@ -75,10 +75,15 @@ function explodeGrenade(g){
     damagePlayer(dmg, Math.atan2(pos.z - player.pos.z, pos.x - player.pos.x));
   }
 
-  for(const e of enemies){
+  /* 对敌人造成伤害（隔墙无效）；迭代副本，因为击杀可能触发补员 */
+  const eChest = new THREE.Vector3();
+  for(const e of [...enemies]){
     if(e.dead) continue;
     const ed = e.mesh.position.distanceTo(pos);
-    if(ed < 12) damageEnemy(e, Math.max(20, 160 - ed*14), false);
+    eChest.set(e.mesh.position.x, e.mesh.position.y + 1.2, e.mesh.position.z);
+    if(ed < 12 && hasLineOfSight(pos, eChest)){
+      damageEnemy(e, Math.max(20, 160 - ed*14), false);
+    }
   }
 
   scene.remove(g.mesh);

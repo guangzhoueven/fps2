@@ -7,6 +7,8 @@ function damageEnemy(enemy, dmg, headshot){
   if(enemy.dead) return;
   enemy.hp -= dmg;
   enemy.hitFlash = .12;
+  showHitmark(headshot);
+  if(headshot) player.stats.headshots++;
   showDamageNumber(dmg, headshot);
   snd('hit', .12);
 
@@ -19,7 +21,12 @@ function damageEnemy(enemy, dmg, headshot){
     snd('kill', .2);
     spawnBlood(enemy.mesh.position.clone().setY(1.2));
     updateHUD();
-    if(player.kills >= KILL_TARGET && isPlaying) winGame();
+    if(player.kills >= KILL_TARGET && isPlaying) { winGame(); return; }
+    /*
+     * 难度递增：击杀数增加时提升场上敌人数量上限，
+     * 不足则立即补一个新的活体（尸体 5 秒后还会再利用）
+     */
+    if(enemies.length < maxActiveEnemies()) spawnEnemy();
   }
 }
 
@@ -41,7 +48,7 @@ function damagePlayer(dmg, angle){
     player.deaths++;
     isPlaying = false;
     document.exitPointerLock();
-    showMenu('你 死 了', '重 新 复 活', '', 'dead');
+    showMenu('你 死 了', '重 新 复 活', statsText(), 'dead');
   }
   updateHUD();
 }

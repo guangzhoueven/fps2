@@ -147,5 +147,15 @@ function snd(type, vol){
       src.start(t); src.stop(t+0.2);
       break;
     }
+    case 'pickup': {
+      const o = AC.createOscillator();
+      o.type = 'sine';
+      o.frequency.setValueAtTime(700, t);
+      o.frequency.exponentialRampToValueAtTime(1400, t+0.12);
+      g.gain.setValueAtTime(vol, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t+0.18);
+      o.connect(g); o.start(t); o.stop(t+0.2);
+      break;
+    }
   }
 }

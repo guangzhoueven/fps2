@@ -126,6 +126,17 @@ function updateWeapon(dt){
   weaponGroup.position.z += (tz + player.recoilOffset*.1 - weaponGroup.position.z) * Math.min(1, dt*20);
   weaponGroup.rotation.x += (player.recoilOffset*.3 - weaponGroup.rotation.x) * Math.min(1, dt*20);
 
+  /* 开镜时轻微呼吸晃动，模拟据枪摇曳 */
+  if(player.isScoped){
+    const sway = Math.sin(gameTime*1.7) * .012 + Math.sin(gameTime*.9) * .008;
+    weaponGroup.rotation.z += sway * dt * 8;
+    weaponGroup.position.x += Math.sin(gameTime*.8) * .002;
+  }
+
+  /* 准星随射击扩散张开 */
+  document.getElementById('crosshair').style.transform =
+    `translate(-50%,-50%) scale(${1 + player.spread*.3})`;
+
   if(player.weapon === 'knife' && player.recoilOffset > 0.01){
     weaponGroup.rotation.z = -player.recoilOffset * 3;
     weaponGroup.rotation.x = -player.recoilOffset * 2;

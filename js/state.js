@@ -47,7 +47,8 @@ const player = {
   isScoped: false,
   isCrouching: false,
   stepAcc: 0,
-  weaponSwitchAnim: 0
+  weaponSwitchAnim: 0,
+  stats: { shots: 0, hits: 0, headshots: 0 }   // 战绩：开枪数/命中数/爆头数
 };
 
 /* --- 场景分组与模型容器 --- */
@@ -65,3 +66,7 @@ const bulletHoles = [];
 /* --- 碰撞体 --- */
 const colliders = [];
 const wallMeshes = [];
+
+/* --- 拾取物 --- */
+const pickups = [];
+let pickupTimer = 6;   // 首个补给 6 秒后刷新

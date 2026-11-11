@@ -55,6 +55,12 @@
   #combo{position:absolute;top:28%;left:50%;transform:translate(-50%,-50%);font-size:46px;font-weight:900;color:#ffbb00;text-shadow:0 0 20px #ff5500,3px 3px 0 #000;opacity:0;font-family:'Arial Black',sans-serif;font-style:italic;white-space:nowrap;pointer-events:none}
 
   #damage{position:absolute;inset:0;background:radial-gradient(circle,transparent 35%,rgba(200,0,0,.65) 100%);opacity:0;transition:opacity .25s;pointer-events:none}
+  #lowhp{position:absolute;inset:0;pointer-events:none;opacity:0}
+  body.lowhp #lowhp{opacity:1;animation:lowhpPulse 1.1s infinite}
+  @keyframes lowhpPulse{
+    0%,100%{background:radial-gradient(circle,transparent 42%,rgba(255,0,0,.25) 100%)}
+    50%{background:radial-gradient(circle,transparent 30%,rgba(255,0,0,.6) 100%)}
+  }
   #dir-indicator{position:absolute;left:50%;top:50%;width:220px;height:220px;transform:translate(-50%,-50%);border-radius:50%;border:3px solid transparent;border-top-color:#ff2a2a;opacity:0;pointer-events:none}
 
   #scope{position:absolute;inset:0;display:none;pointer-events:none;background:radial-gradient(circle at center,transparent 32%,rgba(0,0,0,.98) 34%)}
@@ -95,6 +101,7 @@
     <div id="feed"></div>
     <div id="combo"></div>
     <div id="damage"></div>
+    <div id="lowhp"></div>
     <div id="dir-indicator"></div>
     <div id="scope"><div class="scope-ring"></div></div>
     <div id="stats">
@@ -137,6 +144,7 @@
 <script src="js/damage.js"></script>
 <script src="js/combat.js"></script>
 <script src="js/grenade.js"></script>
+<script src="js/pickups.js"></script>
 <script src="js/player.js"></script>
 <script src="js/hud.js"></script>
 <script src="js/input.js"></script>

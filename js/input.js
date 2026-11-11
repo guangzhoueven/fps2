@@ -45,6 +45,12 @@ document.addEventListener('keyup', (e)=>{
   keys[e.code] = false;
 });
 
+/* 窗口失焦时清空按键，防止切走后移动/开火卡死 */
+addEventListener('blur', ()=>{
+  for(const k in keys) keys[k] = false;
+  mouseDown = false;
+});
+
 /* 退出指针锁（按 ESC）时进入暂停菜单 */
 document.addEventListener('pointerlockchange', ()=>{
   if(document.pointerLockElement !== renderer.domElement && isPlaying){

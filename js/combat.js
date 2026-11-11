@@ -1,5 +1,5 @@
 /* ==================================================================
- *  武器操作 —— 射击 / 投弹壳 / 换弹 / 切枪 / 开镜
+ *  武器操作 —— 射击 / 换弹 / 切枪 / 开镜（含战绩统计）
  * ================================================================== */
 'use strict';
 
@@ -14,6 +14,7 @@ function shoot(){
     player.nextShot = now + w.fireRate;
     snd('swing', .25);
     player.recoilOffset += .05;
+    player.stats.shots++;
 
     const ray = new THREE.Raycaster();
     ray.setFromCamera(new THREE.Vector2(0,0), camera);
@@ -25,7 +26,7 @@ function shoot(){
         if(e.dead) continue;
         let obj = hits[0].object;
         while(obj && obj !== e.mesh) obj = obj.parent;
-        if(obj === e.mesh){ damageEnemy(e, w.damage, false); break; }
+        if(obj === e.mesh){ player.stats.hits++; damageEnemy(e, w.damage, false); break; }
       }
     }
     updateHUD();
@@ -42,6 +43,7 @@ function shoot(){
   player.nextShot = now + w.fireRate;
   player.recoilOffset += w.recoil;
   player.spread = Math.min(1, player.spread + .12);
+  player.stats.shots++;
 
   snd('shot', player.weapon === 'awm' ? .7 : (player.weapon === 'deagle' ? .4 : .28));
 
@@ -69,9 +71,11 @@ function shoot(){
   const targets = [...enemies.filter(e=>!e.dead).map(e=>e.mesh), ...wallMeshes];
   const hits = ray.intersectObjects(targets, true);
 
+  const muzzlePos = getMuzzleWorld();
+  let enemyHit = null;
+
   if(hits.length){
     const hit = hits[0];
-    let enemyHit = null;
     for(const e of enemies){
       if(e.dead) continue;
       let obj = hit.object;
@@ -82,6 +86,7 @@ function shoot(){
     if(enemyHit){
       const isHead = hit.point.y > enemyHit.mesh.position.y + 1.5;
       const dmg = w.damage * (isHead ? 2.5 : 1) * (.85 + Math.random()*.3);
+      player.stats.hits++;
       damageEnemy(enemyHit, dmg, isHead);
       spawnBlood(hit.point);
     } else {
@@ -90,22 +95,14 @@ function shoot(){
     }
   }
 
+  /* 弹道曳光：枪口 → 命中点（未命中则射向远方） */
+  const end = hits.length
+    ? hits[0].point.clone()
+    : ray.ray.origin.clone().addScaledVector(ray.ray.direction, w.range * .6);
+  spawnTracer(muzzlePos, end, 0xffee88, .05);
+
   player.spread *= .8;
   updateHUD();
-}
-
-/* 弹出弹壳 */
-function spawnShell(){
-  const mp = new THREE.Vector3();
-  currentWeaponModel.userData.muzzle.getWorldPosition(mp);
-  const geo = new THREE.CylinderGeometry(.008,.008,.03,6);
-  const mat = new THREE.MeshStandardMaterial({ color: 0xffcc00, metalness: .9, roughness: .2 });
-  const shell = new THREE.Mesh(geo, mat);
-  shell.position.copy(mp);
-  shell.position.x += .1;
-  scene.add(shell);
-  const vel = new THREE.Vector3(.8 + Math.random()*.5, 1.5 + Math.random()*.5, (Math.random()-.5)*.5).normalize().multiplyScalar(2.5);
-  shellCasings.push({ mesh: shell, vel, life: 2 });
 }
 
 /* ------------------------------------------------------------------

@@ -3,6 +3,16 @@
  * ================================================================== */
 'use strict';
 
+/* --- 命中反馈标记（头部一定放大显示） --- */
+let _hitmarkTimer = 0;
+function showHitmark(headshot){
+  const el = document.getElementById('hitmark');
+  el.style.opacity = 1;
+  el.style.transform = `translate(-50%,-50%) scale(${headshot ? 1.6 : 1})`;
+  clearTimeout(_hitmarkTimer);
+  _hitmarkTimer = setTimeout(()=> el.style.opacity = 0, headshot ? 110 : 70);
+}
+
 function updateHUD(){
   const hpEl = document.getElementById('hp-inner');
   const hpTxt = document.getElementById('hp-text');
@@ -12,6 +22,9 @@ function updateHUD(){
     : hpPct > 30 ? 'linear-gradient(90deg,#ffaa00,#ffcc33)'
     : 'linear-gradient(90deg,#ff2222,#ff5555)';
   hpTxt.textContent = Math.ceil(player.hp);
+
+  /* 低血量（<30%）时屏幕红色脉动 */
+  document.body.classList.toggle('lowhp', hpPct < 30);
 
   document.getElementById('armor-inner').style.width = player.armor + '%';
 
@@ -107,6 +120,14 @@ function updateMinimap(){
     const y = cy + e.mesh.position.z * scale;
     g.fillStyle = e.canSee ? '#ff3333' : '#663333';
     g.beginPath(); g.arc(x, y, 3, 0, 6.283); g.fill();
+  }
+
+  // 补给点：黄绿色小方块
+  g.fillStyle = '#aadd44';
+  for(const p of pickups){
+    const x = cx + p.mesh.position.x * scale;
+    const y = cy + p.mesh.position.z * scale;
+    g.fillRect(x-2, y-2, 4, 4);
   }
 
   const px = cx + player.pos.x * scale;

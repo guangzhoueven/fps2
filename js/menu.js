@@ -12,8 +12,14 @@ function showMenu(title, btnText, winMsg, stateType){
   document.getElementById('win-msg').textContent = winMsg || '';
 }
 
-/* 死亡后复活：保留击杀数，重置血量弹药 */
-function respawnPlayer(){
+/* 结算战绩文本 */
+function statsText(){
+  const s = player.stats;
+  const acc = s.shots ? Math.round(s.hits / s.shots * 100) : 0;
+  return '准确率 ' + acc + '% · 爆头 ' + s.headshots;
+}
+
+/* 死亡后复活：保留击杀数，重置血量弹药 */function respawnPlayer(){
   player.hp = 100;
   player.armor = 100;
   player.isDead = false;
@@ -64,6 +70,7 @@ function resetGame(){
   player.spread = 0;
   player.recoilOffset = 0;
   player.weaponSwitchAnim = 0;
+  player.stats = { shots: 0, hits: 0, headshots: 0 };
   yaw = 0; pitch = 0;
   camera.rotation.set(0, 0, 0);
   camera.fov = 75;
@@ -80,14 +87,12 @@ function resetGame(){
   enemies.length = 0;
   for(let i=0;i<5;i++) spawnEnemy();
 
+  /* 特效与补给统一清理 */
   for(const g of grenades) scene.remove(g.mesh);
   grenades.length = 0;
-  for(const p of particles) particleGroup.remove(p.mesh);
-  particles.length = 0;
-  for(const s of shellCasings) scene.remove(s.mesh);
-  shellCasings.length = 0;
-  for(const b of bulletHoles) scene.remove(b);
-  bulletHoles.length = 0;
+  clearFx();
+  clearPickups();
+  pickupTimer = 6;
 
   comboCount = 0;
   updateHUD();
@@ -117,5 +122,5 @@ document.getElementById('start-btn').addEventListener('click', ()=>{
 function winGame(){
   isPlaying = false;
   document.exitPointerLock();
-  showMenu('W I N', '再 来 一 局', '击杀 ' + player.kills + ' 名敌人，回合胜利！', 'win');
+  showMenu('W I N', '再 来 一 局', '击杀 ' + player.kills + ' 名敌人 · ' + statsText(), 'win');
 }
